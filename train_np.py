@@ -1,6 +1,6 @@
 import torch
 from random import randint
-from neural_process import NeuralProcessImg
+from models import NeuralProcessImg
 from torch import nn
 from torch.distributions.kl import kl_divergence
 from utils import (context_target_split, batch_context_target_mask,

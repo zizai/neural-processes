@@ -19,7 +19,7 @@ Simple example of training a neural process on functions or images.
 
 ```python
 import torch
-from neural_process import NeuralProcess, NeuralProcessImg
+from models import NeuralProcess, NeuralProcessImg
 from training import NeuralProcessTrainer
 
 # Define neural process for functions...

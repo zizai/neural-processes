@@ -4,9 +4,9 @@ import os
 import sys
 import torch
 from datasets import mnist, celeba
-from neural_process import NeuralProcessImg
+from models import NeuralProcessImg
 from time import strftime
-from training import NeuralProcessTrainer
+from train_np import NeuralProcessTrainer
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
