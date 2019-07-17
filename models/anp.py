@@ -44,10 +44,21 @@ class DeterministicEncoder(nn.Module):
 
     def forward(self, x_context, y_context, x_target):
         """
+        Parameters
+        ----------
+        x_context : torch.Tensor
+            Shape (batch_size, num_context, x_dim)
+
+        y_context : torch.Tensor
+            Shape (batch_size, num_context, y_dim)
+
+        x_target : torch.Tensor
+            Shape (batch_size, num_target, x_dim)
+
         Returns
         -------
         r : torch.Tensor
-            Shape (batch_size, r_dim)
+            Shape (batch_size, num_target, r_dim)
         """
         batch_size, num_context, _ = x_context.size()
         _, num_target, _ = x_target.size()
@@ -62,14 +73,14 @@ class DeterministicEncoder(nn.Module):
         # Reshape tensors into batches
         hidden = hidden_flat.view(batch_size, num_context, self.h_dim)
 
-        # Aggregate hidden
-        r = self.attention(x_context, x_target, hidden)
+        # Get representation
+        r = self.attention(x_target, x_context, hidden)
         return r
 
 
 class LatentEncoder(nn.Module):
     """
-    Maps an (x_i, y_i) pair to a representation s_i.
+    Maps an (x_i, y_i) pair to a representation s.
 
     Parameters
     ----------
@@ -103,14 +114,18 @@ class LatentEncoder(nn.Module):
 
     def forward(self, x_context, y_context):
         """
-        Returns
-        -------
-        s :
+        Parameters
+        ----------
         x : torch.Tensor
-            Shape (batch_size, x_dim)
+            Shape (batch_size, num_context, x_dim)
 
         y : torch.Tensor
-            Shape (batch_size, y_dim)
+            Shape (batch_size, num_context, y_dim)
+
+        Returns
+        -------
+        s : torch.Tensor
+            Shape (batch_size, s_dim)
         """
         batch_size, num_context, _ = x_context.size()
 
@@ -130,9 +145,8 @@ class LatentEncoder(nn.Module):
 
 class GaussianEncoder(nn.Module):
     """
-    Maps a representation s to mu and sigma which will define the normal
-    distribution from which we sample the latent variable z.
-    Parameterization trick.
+    Perform reparameterization trick on s.
+    We can sample from z, which is a distribution over s.
 
     Parameters
     ----------
@@ -154,8 +168,14 @@ class GaussianEncoder(nn.Module):
 
     def forward(self, s):
         """
+        Parameters
+        ----------
         s : torch.Tensor
             Shape (batch_size, s_dim)
+
+        Returns
+        -------
+        q_z : torch.distributions.Normal
         """
         hidden = torch.relu(self.s_to_hidden(s))
         mu = self.hidden_to_mu(hidden)
@@ -211,7 +231,7 @@ class Decoder(nn.Module):
             Shape (batch_size, num_points, x_dim)
 
         r : torch.Tensor
-            Shape (batch_size, r_dim)
+            Shape (batch_size, num_points, r_dim)
 
         z : torch.Tensor
             Shape (batch_size, z_dim)
@@ -224,7 +244,6 @@ class Decoder(nn.Module):
         batch_size, num_points, _ = x.size()
         # Repeat z, so it can be concatenated with every x. This changes shape
         # from (batch_size, z_dim) to (batch_size, num_points, z_dim)
-        r = r.unsqueeze(1).repeat(1, num_points, 1)
         z = z.unsqueeze(1).repeat(1, num_points, 1)
 
         # Flatten x and z to fit with linear layer
@@ -285,9 +304,6 @@ class ANP(nn.Module):
 
     def xy_to_rz(self, x_context, y_context, x_target):
         """
-        Maps (x, y) pairs into the mu and sigma parameters defining the normal
-        distribution of the latent variables z.
-
         Parameters
         ----------
         x_context : torch.Tensor
@@ -302,7 +318,7 @@ class ANP(nn.Module):
         Returns
         -------
         r : torch.Tensor
-            Shape (batch_size, r_dim)
+            Shape (batch_size, num_target, r_dim)
 
         p_z : torch.distributions.Normal
             Shape (batch_size, z_dim)
