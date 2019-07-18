@@ -302,32 +302,6 @@ class ANP(nn.Module):
         self.s_to_z = GaussianEncoder(h_dim, z_dim)
         self.xrz_to_y = Decoder(x_dim, r_dim, z_dim, h_dim, y_dim)
 
-    def xy_to_rz(self, x_context, y_context, x_target):
-        """
-        Parameters
-        ----------
-        x_context : torch.Tensor
-            Shape (batch_size, num_context, x_dim)
-
-        y_context : torch.Tensor
-            Shape (batch_size, num_context, y_dim)
-
-        x_target : torch.Tensor
-            Shape (batch_size, num_target, x_dim)
-
-        Returns
-        -------
-        r : torch.Tensor
-            Shape (batch_size, num_target, r_dim)
-
-        p_z : torch.distributions.Normal
-            Shape (batch_size, z_dim)
-        """
-        r = self.xy_to_r(x_context, y_context, x_target)
-        s = self.xy_to_s(x_context, y_context)
-        q_z = self.s_to_z(s)
-        return r, q_z
-
     def forward(self, x_context, y_context, x_target, y_target=None):
         """
         Given context pairs (x_context, y_context) and target points x_target,
@@ -355,26 +329,35 @@ class ANP(nn.Module):
         shown to work best empirically.
         """
         if self.training:
+            # Get deterministic code
+            r = self.xy_to_r(x_context, y_context, x_target)
+
             # Encode target and context (context needs to be encoded to
             # calculate kl term)
-            r_target, q_z_target = self.xy_to_rz(x_target, y_target, x_target)
-            r_context, q_z_context = self.xy_to_rz(x_context, y_context, x_target)
+            s_context = self.xy_to_s(x_context, y_context)
+            s_target = self.xy_to_s(x_target, y_target)
+            z_prior = self.s_to_z(s_context)
+            z_posterior = self.s_to_z(s_target)
 
             # Sample from encoded distribution using reparameterization trick
-            z_sample = q_z_target.rsample()
+            z_sample = z_posterior.rsample()
 
             # Get output distribution
-            p_y_pred = self.xrz_to_y(x_target, r_target, z_sample)
+            p_y_pred = self.xrz_to_y(x_target, r, z_sample)
 
-            return p_y_pred, q_z_target, q_z_context
+            return p_y_pred, z_posterior, z_prior
         else:
-            # At testing time, encode only context
-            r_context, q_z_context = self.xy_to_rz(x_context, y_context, x_target)
+            # Get deterministic code
+            r = self.xy_to_r(x_context, y_context, x_target)
 
-            # Sample from encoded distribution using reparameterization trick
-            z_sample = q_z_context.rsample()
+            # At testing time, encode only context
+            s_context = self.xy_to_s(x_context, y_context)
+            z_prior = self.s_to_z(s_context)
+
+            # Sample from the prior distribution
+            z_sample = z_prior.rsample()
 
             # Predict target points based on context
-            p_y_pred = self.xrz_to_y(x_target, r_context, z_sample)
+            p_y_pred = self.xrz_to_y(x_target, r, z_sample)
 
             return p_y_pred
